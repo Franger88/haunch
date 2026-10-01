@@ -8,7 +8,10 @@ object Balance {
     const val STEP = 1.0 / 120.0
     // A brace has to pull stress down in a short tap. If recovery is weak, three arches
     // cannot be held without draining the mortar, and perfect play dies in the first minute.
-    const val RECOVER = 1.15
+    const val RECOVER = 1.4
+    const val SNAP = 0.30
+    const val SNAP_COST = 0.03
+    const val WRONG_SNAP = 0.18
     const val WRONG_MULT = 1.8
     const val DRY_UNLOCK = 0.25
     /** A failing side waits while stress is above this, so a flip is never the thing that kills you. */
@@ -20,10 +23,10 @@ object Balance {
     const val PIN_MORTAR = 0.20
     const val FALSE_PIN_HURT = 0.20
     const val TEACH_CLAMP = 0.92
-    const val TEACH_CLEANS = 4
-    const val REHEARSAL_SECONDS = 10.0
+    const val TEACH_CLEANS = 3
+    const val REHEARSAL_SECONDS = 8.0
 
-    val PERIODS = doubleArrayOf(2.2, 3.1, 4.3)
+    val PERIODS = doubleArrayOf(1.25, 1.70, 2.15)
 
     data class Band(
         val rise: Double,
@@ -37,18 +40,14 @@ object Balance {
 
     fun band(t: Double): Band {
         val row = when {
-            t < 15.0 -> Band(0.14, 0.48, 0.25, 0.20, pins = false, falsePins = false, liar = false)
-            t < 40.0 -> Band(0.17, 0.50, 0.22, 0.18, pins = false, falsePins = false, liar = false)
-            t < 90.0 -> Band(0.19, 0.55, 0.18, 0.16, pins = true, falsePins = false, liar = false)
-            t < 150.0 -> Band(0.21, 0.58, 0.15, 0.16, pins = true, falsePins = true, liar = false)
-            t < 240.0 -> Band(0.25, 0.64, 0.12, 0.18, pins = true, falsePins = true, liar = false)
-            else -> Band(0.32, 0.70, 0.09, 0.20, pins = true, falsePins = true, liar = false)
+            t < 8.0 -> Band(0.42, 0.20, 0.55, 0.08, pins = false, falsePins = false, liar = false)
+            t < 20.0 -> Band(0.48, 0.22, 0.50, 0.10, pins = false, falsePins = false, liar = false)
+            t < 45.0 -> Band(0.52, 0.24, 0.46, 0.10, pins = true, falsePins = false, liar = false)
+            t < 80.0 -> Band(0.58, 0.28, 0.40, 0.12, pins = true, falsePins = false, liar = false)
+            t < 130.0 -> Band(0.66, 0.32, 0.34, 0.14, pins = true, falsePins = true, liar = false)
+            else -> Band(0.78, 0.36, 0.28, 0.16, pins = true, falsePins = true, liar = false)
         }
-        // Lies begin at 75s (the written rule). Rise keeps the table above.
-        val liar = t >= 75.0
-        val falsePins = t >= 90.0
-        val pins = t >= 40.0
-        return row.copy(pins = pins, falsePins = falsePins, liar = liar)
+        return row.copy(pins = t >= 16.0, falsePins = t >= 50.0, liar = t >= 36.0)
     }
 
     /** A lie may open only when a truthful crack still has time to be read before collapse. */

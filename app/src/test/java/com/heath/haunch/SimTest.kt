@@ -120,15 +120,15 @@ class SimTest {
     fun lieLeavesAReadableTruthWindow() {
         assertFalse(Balance.lieAllowed(0.97, 0.38))
         assertTrue(Balance.lieAllowed(0.55, 0.20))
-        for (t in listOf(75.0, 90.0, 150.0, 240.0, 300.0)) {
+        for (t in listOf(40.0, 80.0, 140.0)) {
             val row = Balance.band(t)
             assertTrue("t=$t", row.liar)
             assertTrue("t=$t", Balance.lieAllowed(row.crackAt, row.rise))
         }
-        assertFalse(Balance.band(60.0).liar)
-        assertTrue(Balance.band(40.0).pins)
-        assertFalse(Balance.band(40.0).falsePins)
-        assertTrue(Balance.band(90.0).falsePins)
+        assertFalse(Balance.band(20.0).liar)
+        assertTrue(Balance.band(16.0).pins)
+        assertFalse(Balance.band(16.0).falsePins)
+        assertTrue(Balance.band(50.0).falsePins)
     }
 
     @Test
@@ -194,9 +194,8 @@ class SimTest {
         private var hold: Int? = null
 
         fun finger(sim: Sim): Finger {
-            val crack = sim.band().crackAt
-            val engage = (crack + 0.06).coerceAtMost(0.84)
-            val release = (engage - 0.08).coerceAtLeast(0.05)
+            val engage = 0.70
+            val release = 0.40
             val held = hold
             if (held != null) {
                 val arch = sim.arch(held)

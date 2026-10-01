@@ -4,7 +4,7 @@ A portrait game for a Pixel. You are the night mason. Three arches fail from the
 
 ## Play
 
-Wait until a crack shows, then hold that haunch. Slide to another arch without lifting. The center of an arch braces nothing. A second finger, or Back, sets the tools down. The stone waits through a phone call.
+The failing side glows. Hold that side and the arch knocks back open. Slide to another arch without lifting. A narrow strip in the center braces nothing. A second finger, or Back, sets the tools down. The stone waits through a phone call.
 
 - **Endless** is a new seed every run.
 - **Tonight's arch** is one seed for the local calendar day, so you can retry the same stone.

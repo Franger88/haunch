@@ -120,8 +120,8 @@ class Sim(
         Lesson.TEACH -> index == 1
         Lesson.REHEARSAL -> index == 1 || index == 0
         Lesson.DONE -> when {
-            time < 15.0 -> index == 1
-            time < 40.0 -> index == 1 || index == 0
+            time < 8.0 -> index == 1
+            time < 20.0 -> index == 1 || index == 0
             else -> true
         }
     }
@@ -159,7 +159,7 @@ class Sim(
 
         val truth = Array(3) { arches[it].side }
         val effective = braceWorks(finger)
-        noteBrace(finger, effective, truth, row)
+        noteBrace(finger, effective, truth)
 
         for (i in 0..2) {
             val arch = arches[i]
@@ -219,7 +219,7 @@ class Sim(
         return isLive(finger.arch) && !arch.collapsed
     }
 
-    private fun noteBrace(finger: Finger, effective: Boolean, truth: Array<Side>, row: Balance.Band) {
+    private fun noteBrace(finger: Finger, effective: Boolean, truth: Array<Side>) {
         val key = if (effective && finger.arch != null && finger.side != null) {
             BraceKey(finger.arch, finger.side, truth[finger.arch])
         } else {
@@ -230,12 +230,21 @@ class Sim(
         if (key == null) return
         val arch = arches[key.arch]
         val correct = key.hand == key.truth
-        val cracked = arch.stress >= row.crackAt
-        if (correct && cracked) {
+        if (correct) {
+            // One tap knocks the arch back open. Holding still heals; the snap is the hit.
+            arch.stress = (arch.stress - Balance.SNAP).coerceAtLeast(0.0)
+            mortar = (mortar - Balance.SNAP_COST).coerceAtLeast(0.0)
+            if (mortar <= 0.0) {
+                mortar = 0.0
+                dry = true
+                lastKey = null
+            }
             clean += 1
             edgeClean = true
             if (lesson == Lesson.TEACH) teachCleans += 1
         } else {
+            val cap = if (lesson == Lesson.TEACH) Balance.TEACH_CLAMP else 1.0
+            arch.stress = (arch.stress + Balance.WRONG_SNAP).coerceAtMost(cap)
             waste += 1
             edgeWaste = true
         }
@@ -401,6 +410,11 @@ class Sim(
         rewind = emptyList()
         if (!keepLesson) lesson = Lesson.DONE
         for (arch in arches) arch.arm(seed)
+        if (lesson == Lesson.TEACH) arches[1].stress = 0.72
+        if (lesson == Lesson.REHEARSAL) {
+            arches[0].stress = 0.58
+            arches[1].stress = 0.66
+        }
     }
 
     private fun buildSentence(): String {

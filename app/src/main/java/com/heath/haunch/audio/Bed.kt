@@ -41,10 +41,12 @@ class Bed {
     @Volatile var level1: Float = 0f
     @Volatile var level2: Float = 0f
     @Volatile var scrape: Float = 0f
+    @Volatile var knock: Float = 0f
     @Volatile var muted: Boolean = false
 
     private val freqs = doubleArrayOf(220.0, 293.33, 391.11)
     private val phase = DoubleArray(3)
+    private var knockPhase = 0.0
     private var noise = 0x1234567
     @Volatile private var running = false
     private var thread: Thread? = null
@@ -68,6 +70,12 @@ class Bed {
                         sample += kotlin.math.sin(phase[n]) * amp
                     }
                     val grit = scrape.coerceIn(0f, 1f)
+                    val hit = knock.coerceIn(0f, 1f)
+                    if (hit > 0.001f) {
+                        knockPhase += 2.0 * Math.PI * 540.0 / rate
+                        sample += kotlin.math.sin(knockPhase) * hit * 0.55
+                        knock = hit * 0.992f
+                    }
                     if (grit > 0.001f) {
                         noise = noise * 1103515245 + 12345
                         val white = ((noise ushr 16) and 0x7fff) / 32767.0 - 0.5

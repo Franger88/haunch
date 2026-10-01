@@ -50,6 +50,9 @@ class GameView(
     private var debug = false
     private var banner = ""
     private var bannerUntil = 0L
+    private var pop = 0f
+    private var hitFlash = 0f
+    private var shake = 0f
     private var looping = false
     private var lastNanos = 0L
     private var pressed: String? = null
@@ -81,6 +84,8 @@ class GameView(
     private val ink = fill(0xCC0C0E14.toInt())
     private val line = stroke(0xFFE7A15A.toInt(), 2f)
     private val ghost = fill(0x66E7A15A.toInt())
+    private val hot = fill(0xFFE7A15A.toInt())
+    private val flash = fill(0x66E7A15A.toInt())
     private val shadePaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var shade: LinearGradient? = null
 
@@ -156,8 +161,8 @@ class GameView(
         if (!save.tutorialDone) {
             sim = Sim(TEACH_SEED, Lesson.TEACH)
             teaching = true
-            banner = "Wait for the crack. Then brace that haunch."
-            bannerUntil = SystemClock.uptimeMillis() + 4_000L
+            banner = "Hold the bright side."
+            bannerUntil = SystemClock.uptimeMillis() + 60_000L
         } else {
             beginScored()
         }
@@ -176,8 +181,8 @@ class GameView(
         kept = null
         accumulator = 0.0
         finger = Finger.NONE
-        banner = if (mode == Mode.TONIGHT) "Tonight's arch. Same stone until midnight." else "Endless stone."
-        bannerUntil = SystemClock.uptimeMillis() + 2_200L
+        banner = "Hold the bright side."
+        bannerUntil = SystemClock.uptimeMillis() + 4_000L
     }
 
     private fun tick(dt: Double) {
@@ -208,29 +213,37 @@ class GameView(
         if (running.lessonFinished && teaching) {
             save.tutorialDone = true
             beginScored()
-            banner = "The scaffold is yours."
-            bannerUntil = SystemClock.uptimeMillis() + 2_400L
+            banner = "Hold the bright side."
+            bannerUntil = SystemClock.uptimeMillis() + 3_000L
             return
         }
+        pop = (pop - (dt * 2.8)).toFloat().coerceAtLeast(0f)
+        hitFlash = (hitFlash - (dt * 2.2)).toFloat().coerceAtLeast(0f)
+        shake = (shake - (dt * 4.0)).toFloat().coerceAtLeast(0f)
         if (running.over) {
             finger = Finger.NONE
-            replayClock = 0.0
-            screen = if (running.rewind.size > 2) Screen.REPLAY else Screen.RESULT
-            if (screen == Screen.RESULT) commitScore()
+            screen = Screen.RESULT
+            commitScore()
         }
     }
 
     private fun react(running: Sim) {
-        if (running.edgeClean) pulse.thud()
+        if (running.edgeClean) {
+            pulse.thud()
+            pop = 1f
+            hitFlash = 1f
+            shake = 1f
+            bed.knock = 1f
+        }
         if (running.edgeWaste) {
             pulse.buzzWrong()
             bed.scrape = 1f
         }
         for (i in 0..2) if (running.edgeCrack[i]) pulse.tick(i)
         if (save.sound && screen == Screen.PLAY) {
-            bed.level0 = if (running.isLive(0)) running.arch(0).stress.toFloat() else 0f
-            bed.level1 = if (running.isLive(1)) running.arch(1).stress.toFloat() else 0f
-            bed.level2 = if (running.isLive(2)) running.arch(2).stress.toFloat() else 0f
+            bed.level0 = if (running.isLive(0)) running.arch(0).stress.toFloat() * 0.35f else 0f
+            bed.level1 = if (running.isLive(1)) running.arch(1).stress.toFloat() * 0.35f else 0f
+            bed.level2 = if (running.isLive(2)) running.arch(2).stress.toFloat() * 0.35f else 0f
         } else {
             silence()
         }
@@ -271,6 +284,11 @@ class GameView(
         hits.clear()
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), shadePaint)
         val running = sim
+        val d = resources.displayMetrics.density
+        if (shake > 0f) {
+            val wobble = kotlin.math.sin(SystemClock.uptimeMillis() / 18.0).toFloat() * shake * 7f * d
+            canvas.translate(wobble, 0f)
+        }
         if (running != null && screen != Screen.TITLE) {
             layoutArches()
             drawScaffold(canvas)
@@ -287,6 +305,11 @@ class GameView(
             Screen.PAUSE -> drawPause(canvas)
             Screen.RESULT -> drawResult(canvas)
             Screen.PLAY, Screen.REPLAY -> Unit
+        }
+        if (hitFlash > 0f) {
+            val alpha = (hitFlash * 110f).toInt().coerceIn(0, 140)
+            flash.color = (alpha shl 24) or 0x00F3E6D2
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), flash)
         }
     }
 
@@ -340,9 +363,10 @@ class GameView(
                 canvas.drawRect(rect.left, y, rect.right, y + 2f, course)
                 y += 16f
             }
-            val open = (1f - stress).coerceIn(0.06f, 1f)
+            val sprung = if (pop > 0f && stress < 0.85f) pop * 0.22f else 0f
+            val open = (1f - stress * stress + sprung).coerceIn(0.05f, 1f)
             val cx = rect.centerX()
-            val half = rect.width() * 0.34f * open
+            val half = rect.width() * 0.38f * open
             val crown = rect.top + rect.height() * 0.22f
             val foot = rect.bottom - rect.height() * 0.14f
             opening.reset()
@@ -356,6 +380,22 @@ class GameView(
             canvas.drawRect(key, post)
         }
         canvas.restore()
+        if (live && !collapsed && stress > 0.18f) {
+            val pulse = 0.62f + 0.38f * kotlin.math.sin(SystemClock.uptimeMillis() / 110.0 + index).toFloat()
+            val alpha = ((70 + 170 * stress) * pulse).toInt().coerceIn(40, 230)
+            hot.color = (alpha shl 24) or 0x00E7A15A
+            val cx = if (shownLeft) rect.left + rect.width() * 0.22f else rect.right - rect.width() * 0.22f
+            canvas.drawCircle(cx, rect.centerY(), rect.height() * (0.28f + stress * 0.24f), hot)
+            hot.color = 0xFFF7E7C8.toInt()
+            val tip = if (shownLeft) -1f else 1f
+            crack.reset()
+            crack.moveTo(cx - tip * 16f, rect.centerY() - 18f)
+            crack.lineTo(cx + tip * 18f, rect.centerY())
+            crack.lineTo(cx - tip * 16f, rect.centerY() + 18f)
+            fissure.strokeWidth = 6f
+            fissure.color = 0xFFF7E7C8.toInt()
+            canvas.drawPath(crack, fissure)
+        }
         if (live && !collapsed && cracked) {
             drawCrack(canvas, rect, shownLeft, index)
         }
@@ -449,9 +489,9 @@ class GameView(
         small.textAlign = Paint.Align.LEFT
         var note = ""
         if (running.lesson == Lesson.TEACH) {
-            note = "Clean braces ${running.teachCleans} / ${Balance.TEACH_CLEANS}"
+            note = "Hold the bright side  ${running.teachCleans} / ${Balance.TEACH_CLEANS}"
         } else if (running.lesson == Lesson.REHEARSAL) {
-            note = "Rehearsal ${secs(running.time)} / 10"
+            note = "Both bright sides"
         } else if (SystemClock.uptimeMillis() < bannerUntil) {
             note = banner
         }
@@ -676,8 +716,8 @@ class GameView(
             if (y < rect.top || y > rect.bottom) continue
             val t = ((x - rect.left) / rect.width()).coerceIn(0f, 1f)
             val side = when {
-                t < 0.38f -> Side.LEFT
-                t > 0.62f -> Side.RIGHT
+                t < 0.46f -> Side.LEFT
+                t > 0.54f -> Side.RIGHT
                 else -> null
             }
             val nx = if (width == 0) 0f else x / width
